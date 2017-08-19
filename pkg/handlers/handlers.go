@@ -5,17 +5,17 @@ import (
 	"log"
 	"net/http"
 
-	memdb "github.com/hashicorp/go-memdb"
+	"github.com/rumyantseva/highloadcup/pkg/db"
 )
 
 type Handler struct {
-	db      *memdb.MemDB
+	withdb  *db.WithMax
 	current int
 }
 
-func NewHandler(db *memdb.MemDB, current int) *Handler {
+func NewHandler(withmax *db.WithMax, current int) *Handler {
 	return &Handler{
-		db:      db,
+		withdb:  withmax,
 		current: current,
 	}
 }

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"log"
 	"net/http"
 	"strconv"
@@ -19,7 +20,7 @@ func (h *Handler) Location(w http.ResponseWriter, r *http.Request, ps httprouter
 		return
 	}
 
-	txn := h.db.Txn(false)
+	txn := h.withdb.DB.Txn(false)
 	raw, err := txn.First("location", "id", uid)
 	if err != nil {
 		log.Print(err)
@@ -48,7 +49,7 @@ func (h *Handler) LocationMark(w http.ResponseWriter, r *http.Request, ps httpro
 	}
 
 	// Check location
-	_, err = db.Location(h.db, uint(uid))
+	_, err = db.Location(h.withdb.DB, uint(uid))
 	if err != nil {
 		writeResponse(w, http.StatusNotFound, nil)
 		return
@@ -102,7 +103,7 @@ func (h *Handler) LocationMark(w http.ResponseWriter, r *http.Request, ps httpro
 
 	checker := NewLocationCheker(fromDate, toDate, fromAge, toAge, gender, h.current)
 
-	txn := h.db.Txn(false)
+	txn := h.withdb.DB.Txn(false)
 	iter, err := txn.Get("visit", "location_id", uid)
 	if err != nil {
 		log.Print(err)
@@ -119,7 +120,7 @@ func (h *Handler) LocationMark(w http.ResponseWriter, r *http.Request, ps httpro
 		}
 		visit := raw.(models.Visit)
 
-		if checker.Check(h.db, &visit) {
+		if checker.Check(h.withdb.DB, &visit) {
 			totalMark += visit.Mark
 			visitors++
 		}
@@ -142,16 +143,101 @@ func (h *Handler) UpdateLocation(w http.ResponseWriter, r *http.Request, ps http
 		h.CreateLocation(w, r, ps)
 		return
 	}
-	/*	id := ps.ByName("id")
-		uid, err := strconv.ParseUint(id, 10, 32)
 
-		if err != nil {
-			writeResponse(w, http.StatusBadRequest, nil)
-			return
-		}*/
+	uid, err := strconv.ParseUint(id, 10, 32)
 
+	if err != nil {
+		writeResponse(w, http.StatusNotFound, nil)
+		return
+	}
+
+	// Check if location exists
+	_, err = db.Location(h.withdb.DB, uint(uid))
+	if err != nil {
+		writeResponse(w, http.StatusNotFound, nil)
+		return
+	}
+
+	req := struct {
+		Distance *int    `json:"distance,omitempty"`
+		City     *string `json:"city,omitempty"`
+		Place    *string `json:"place,omitempty"`
+		Country  *string `json:"country,omitempty"`
+	}{}
+
+	defer r.Body.Close()
+	err = json.NewDecoder(r.Body).Decode(&req)
+
+	if err != nil {
+		writeResponse(w, http.StatusBadRequest, nil)
+		return
+	}
+
+	if req.Distance == nil || req.City == nil || req.Place == nil ||
+		req.Country == nil {
+		writeResponse(w, http.StatusBadRequest, nil)
+		return
+	}
+
+	location := models.Location{
+		Distance: *req.Distance,
+		City:     *req.City,
+		Place:    *req.Place,
+		Country:  *req.Country,
+		ID:       uint(uid),
+	}
+
+	txn := h.withdb.DB.Txn(true)
+	err = txn.Insert("location", location)
+	if err != nil {
+		log.Print(err)
+		writeResponse(w, http.StatusInternalServerError, nil)
+		return
+	}
+	txn.Commit()
+
+	writeResponse(w, http.StatusOK, struct{}{})
 }
 
 func (h *Handler) CreateLocation(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	req := struct {
+		Distance *int    `json:"distance,omitempty"`
+		City     *string `json:"city,omitempty"`
+		Place    *string `json:"place,omitempty"`
+		Country  *string `json:"country,omitempty"`
+		ID       *uint   `json:"id,omitempty"`
+	}{}
 
+	defer r.Body.Close()
+	err := json.NewDecoder(r.Body).Decode(&req)
+
+	if err != nil {
+		writeResponse(w, http.StatusBadRequest, nil)
+		return
+	}
+
+	if req.Distance == nil || req.City == nil || req.Place == nil ||
+		req.Country == nil || req.ID == nil {
+		writeResponse(w, http.StatusBadRequest, nil)
+		return
+	}
+
+	location := models.Location{
+		Distance: *req.Distance,
+		City:     *req.City,
+		Place:    *req.Place,
+		Country:  *req.Country,
+		ID:       *req.ID,
+	}
+
+	txn := h.withdb.DB.Txn(true)
+	err = txn.Insert("location", location)
+	if err != nil {
+		log.Print(err)
+		writeResponse(w, http.StatusInternalServerError, nil)
+		return
+	}
+	txn.Commit()
+
+	writeResponse(w, http.StatusOK, struct{}{})
 }

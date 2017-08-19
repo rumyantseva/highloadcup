@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"log"
 	"net/http"
 	"strconv"
@@ -19,7 +20,7 @@ func (h *Handler) Visit(w http.ResponseWriter, r *http.Request, ps httprouter.Pa
 		return
 	}
 
-	txn := h.db.Txn(false)
+	txn := h.withdb.DB.Txn(false)
 	raw, err := txn.First("visit", "id", uid)
 	if err != nil {
 		log.Print(err)
@@ -48,7 +49,7 @@ func (h *Handler) UserVisits(w http.ResponseWriter, r *http.Request, ps httprout
 	}
 
 	// Check user
-	_, err = db.User(h.db, uint(uid))
+	_, err = db.User(h.withdb.DB, uint(uid))
 	if err != nil {
 		writeResponse(w, http.StatusNotFound, nil)
 		return
@@ -91,7 +92,7 @@ func (h *Handler) UserVisits(w http.ResponseWriter, r *http.Request, ps httprout
 
 	checker := NewVisitCheker(fromDate, toDate, toDistance, country)
 
-	txn := h.db.Txn(false)
+	txn := h.withdb.DB.Txn(false)
 	iter, err := txn.Get("visit", "user_id", uid)
 	if err != nil {
 		log.Print(err)
@@ -107,8 +108,8 @@ func (h *Handler) UserVisits(w http.ResponseWriter, r *http.Request, ps httprout
 		}
 		visit := raw.(models.Visit)
 
-		if checker.Check(h.db, &visit) {
-			loc, err := db.Location(h.db, visit.Location)
+		if checker.Check(h.withdb.DB, &visit) {
+			loc, err := db.Location(h.withdb.DB, visit.Location)
 			if err != nil {
 				continue
 			}
@@ -147,16 +148,100 @@ func (h *Handler) UpdateVisit(w http.ResponseWriter, r *http.Request, ps httprou
 		return
 	}
 
-	/*	id := ps.ByName("id")
-		uid, err := strconv.ParseUint(id, 10, 32)
+	uid, err := strconv.ParseUint(id, 10, 32)
 
-		if err != nil {
-			writeResponse(w, http.StatusBadRequest, nil)
-			return
-		}
-	*/
+	if err != nil {
+		writeResponse(w, http.StatusNotFound, nil)
+		return
+	}
+
+	// Check if location exists
+	_, err = db.Visit(h.withdb.DB, uint(uid))
+	if err != nil {
+		writeResponse(w, http.StatusNotFound, nil)
+		return
+	}
+
+	req := struct {
+		User      *uint `json:"user,omitempty"`
+		Location  *uint `json:"location,omitempty"`
+		VisitedAt *int  `json:"visited_at,omitempty"`
+		Mark      *int  `json:"mark,omitempty"`
+	}{}
+
+	defer r.Body.Close()
+	err = json.NewDecoder(r.Body).Decode(&req)
+
+	if err != nil {
+		writeResponse(w, http.StatusBadRequest, nil)
+		return
+	}
+
+	if req.User == nil || req.Location == nil || req.VisitedAt == nil ||
+		req.Mark == nil {
+		writeResponse(w, http.StatusBadRequest, nil)
+		return
+	}
+
+	visit := models.Visit{
+		User:      *req.User,
+		Location:  *req.Location,
+		VisitedAt: *req.VisitedAt,
+		Mark:      *req.Mark,
+		ID:        uint(uid),
+	}
+
+	txn := h.withdb.DB.Txn(true)
+	err = txn.Insert("visit", visit)
+	if err != nil {
+		log.Print(err)
+		writeResponse(w, http.StatusInternalServerError, nil)
+		return
+	}
+	txn.Commit()
+
+	writeResponse(w, http.StatusOK, struct{}{})
 }
 
 func (h *Handler) CreateVisit(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	req := struct {
+		User      *uint `json:"user,omitempty"`
+		Location  *uint `json:"location,omitempty"`
+		VisitedAt *int  `json:"visited_at,omitempty"`
+		Mark      *int  `json:"mark,omitempty"`
+		ID        *uint `json:"id,omitempty"`
+	}{}
 
+	defer r.Body.Close()
+	err := json.NewDecoder(r.Body).Decode(&req)
+
+	if err != nil {
+		writeResponse(w, http.StatusBadRequest, nil)
+		return
+	}
+
+	if req.User == nil || req.Location == nil || req.VisitedAt == nil ||
+		req.Mark == nil || req.ID == nil {
+		writeResponse(w, http.StatusBadRequest, nil)
+		return
+	}
+
+	visit := models.Visit{
+		User:      *req.User,
+		Location:  *req.Location,
+		VisitedAt: *req.VisitedAt,
+		Mark:      *req.Mark,
+		ID:        *req.ID,
+	}
+
+	txn := h.withdb.DB.Txn(true)
+	err = txn.Insert("visit", visit)
+	if err != nil {
+		log.Print(err)
+		writeResponse(w, http.StatusInternalServerError, nil)
+		return
+	}
+	txn.Commit()
+
+	writeResponse(w, http.StatusOK, struct{}{})
 }

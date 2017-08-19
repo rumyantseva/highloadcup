@@ -1,10 +1,13 @@
 package handlers
 
 import (
+	"encoding/json"
+	"log"
 	"net/http"
 	"strconv"
 
 	"github.com/julienschmidt/httprouter"
+	"github.com/rumyantseva/highloadcup/pkg/db"
 	"github.com/rumyantseva/highloadcup/pkg/models"
 )
 
@@ -17,7 +20,7 @@ func (h *Handler) User(w http.ResponseWriter, r *http.Request, ps httprouter.Par
 		return
 	}
 
-	txn := h.db.Txn(false)
+	txn := h.withdb.DB.Txn(false)
 	raw, err := txn.First("user", "id", uid)
 	if err != nil {
 		writeResponse(w, http.StatusInternalServerError, err)
@@ -41,40 +44,111 @@ func (h *Handler) UpdateUser(w http.ResponseWriter, r *http.Request, ps httprout
 		h.CreateUser(w, r, ps)
 		return
 	}
-	/*	id := ps.ByName("id")
-		uid, err := strconv.ParseUint(id, 10, 32)
 
-		if err != nil {
-			writeResponse(w, http.StatusBadRequest, nil)
-			return
-		}
+	uid, err := strconv.ParseUint(id, 10, 32)
 
-		// Check if user exists
+	if err != nil {
+		writeResponse(w, http.StatusNotFound, nil)
+		return
+	}
 
-		type request struct {
-			FirstName *string `json:"first_name,omitempty"`
-			LastName  *string `json:"last_name,omitempty"`
-			BirthDate *int    `json:"birth_date,omitempty"`
-			Gender    *string `json:"gender,omitempty"`
-			Email     *string `json:"email,omitempty"`
-		}
+	// Check if user exists
+	_, err = db.User(h.withdb.DB, uint(uid))
+	if err != nil {
+		writeResponse(w, http.StatusNotFound, nil)
+		return
+	}
 
-		txn := h.db.Txn(true)
-		for _, user := range data.Users {
-			if err := txn.("user", user); err != nil {
-				return err
-			}
-		}
-		txn.Commit()*/
+	req := struct {
+		FirstName *string `json:"first_name,omitempty"`
+		LastName  *string `json:"last_name,omitempty"`
+		BirthDate *int    `json:"birth_date,omitempty"`
+		Gender    *string `json:"gender,omitempty"`
+		Email     *string `json:"email,omitempty"`
+	}{}
 
+	defer r.Body.Close()
+	err = json.NewDecoder(r.Body).Decode(&req)
+
+	if err != nil {
+		writeResponse(w, http.StatusBadRequest, nil)
+		return
+	}
+
+	if req.FirstName == nil || req.LastName == nil || req.BirthDate == nil ||
+		req.Gender == nil || req.Email == nil {
+		writeResponse(w, http.StatusBadRequest, nil)
+		return
+	}
+
+	user := models.User{
+		FirstName: *req.FirstName,
+		LastName:  *req.LastName,
+		BirthDate: *req.BirthDate,
+		Gender:    *req.Gender,
+		Email:     *req.Email,
+		ID:        uint(uid),
+	}
+
+	txn := h.withdb.DB.Txn(true)
+	err = txn.Insert("user", user)
+	if err != nil {
+		log.Print(err)
+		writeResponse(w, http.StatusInternalServerError, nil)
+		return
+	}
+	txn.Commit()
+
+	writeResponse(w, http.StatusOK, struct{}{})
 }
 
 func (h *Handler) CreateUser(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	/*	txn := db.Txn(true)
-		for _, user := range data.Users {
-			if err := txn.Insert("user", user); err != nil {
-				return err
-			}
-		}
-		txn.Commit()*/
+
+	req := struct {
+		FirstName *string `json:"first_name,omitempty"`
+		LastName  *string `json:"last_name,omitempty"`
+		BirthDate *int    `json:"birth_date,omitempty"`
+		Gender    *string `json:"gender,omitempty"`
+		Email     *string `json:"email,omitempty"`
+		ID        *uint   `json:"id,omitempty"`
+	}{}
+
+	defer r.Body.Close()
+	err := json.NewDecoder(r.Body).Decode(&req)
+
+	if err != nil {
+		writeResponse(w, http.StatusBadRequest, nil)
+		return
+	}
+
+	if req.FirstName == nil || req.LastName == nil || req.BirthDate == nil ||
+		req.Gender == nil || req.Email == nil || req.ID == nil {
+		writeResponse(w, http.StatusBadRequest, nil)
+		return
+	}
+
+	//h.withdb.MxUser.Lock()
+	//defer h.withdb.MxUser.Unlock()
+
+	//h.withdb.MaxUser++
+
+	user := models.User{
+		FirstName: *req.FirstName,
+		LastName:  *req.LastName,
+		BirthDate: *req.BirthDate,
+		Gender:    *req.Gender,
+		Email:     *req.Email,
+		ID:        *req.ID,
+	}
+
+	txn := h.withdb.DB.Txn(true)
+	err = txn.Insert("user", user)
+	if err != nil {
+		log.Print(err)
+		writeResponse(w, http.StatusInternalServerError, nil)
+		return
+	}
+	txn.Commit()
+
+	writeResponse(w, http.StatusOK, struct{}{})
 }

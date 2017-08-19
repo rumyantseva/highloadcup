@@ -19,8 +19,10 @@ func main() {
 		log.Fatal(err)
 	}
 
+	withdb := db.NewWithMax(mem)
+
 	var stamp int
-	stamp, err = data.Import(mem)
+	stamp, err = data.Import(withdb)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -28,7 +30,7 @@ func main() {
 	log.Printf("`Current` time is: %d", stamp)
 
 	r := httprouter.New()
-	h := handlers.NewHandler(mem, stamp)
+	h := handlers.NewHandler(withdb, stamp)
 
 	r.GET("/users/:id", h.User)
 	r.GET("/locations/:id", h.Location)

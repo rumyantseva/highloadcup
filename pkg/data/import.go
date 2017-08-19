@@ -10,12 +10,12 @@ import (
 	"sync"
 	"time"
 
-	memdb "github.com/hashicorp/go-memdb"
+	"github.com/rumyantseva/highloadcup/pkg/db"
 	"github.com/rumyantseva/highloadcup/pkg/models"
 )
 
 // Import prepared data from data files.
-func Import(db *memdb.MemDB) (int, error) {
+func Import(withdb *db.WithMax) (int, error) {
 	archive := "/tmp/data/data.zip"
 	target := "/tmp/data/unzip"
 
@@ -46,7 +46,7 @@ func Import(db *memdb.MemDB) (int, error) {
 				break
 			}
 
-			err = user(file, db)
+			err = user(file, withdb)
 			if err != nil {
 				log.Printf("Couldn't parse user: %v", err)
 			}
@@ -63,7 +63,7 @@ func Import(db *memdb.MemDB) (int, error) {
 				break
 			}
 
-			err = location(file, db)
+			err = location(file, withdb)
 			if err != nil {
 				log.Printf("Couldn't parse location: %v", err)
 			}
@@ -80,7 +80,7 @@ func Import(db *memdb.MemDB) (int, error) {
 				break
 			}
 
-			err = visit(file, db)
+			err = visit(file, withdb)
 			if err != nil {
 				log.Printf("Couldn't parse user: %v", err)
 			}
@@ -110,7 +110,7 @@ func Import(db *memdb.MemDB) (int, error) {
 	return st, nil
 }
 
-func user(file *os.File, db *memdb.MemDB) error {
+func user(file *os.File, withdb *db.WithMax) error {
 	defer file.Close()
 
 	data := struct {
@@ -121,18 +121,24 @@ func user(file *os.File, db *memdb.MemDB) error {
 		return fmt.Errorf("Couldn't parse user file. %v", err)
 	}
 
-	txn := db.Txn(true)
+	txn := withdb.DB.Txn(true)
 	for _, user := range data.Users {
 		if err := txn.Insert("user", user); err != nil {
 			return err
 		}
+
+		withdb.MxUser.Lock()
+		if user.ID > withdb.MaxUser {
+			withdb.MaxUser = user.ID
+		}
+		withdb.MxUser.Unlock()
 	}
 	txn.Commit()
 
 	return nil
 }
 
-func location(file *os.File, db *memdb.MemDB) error {
+func location(file *os.File, withdb *db.WithMax) error {
 	defer file.Close()
 
 	data := struct {
@@ -143,18 +149,24 @@ func location(file *os.File, db *memdb.MemDB) error {
 		return fmt.Errorf("Couldn't parse locations file. %v", err)
 	}
 
-	txn := db.Txn(true)
+	txn := withdb.DB.Txn(true)
 	for _, loc := range data.Locations {
 		if err := txn.Insert("location", loc); err != nil {
 			return err
 		}
+
+		withdb.MxLocation.Lock()
+		if loc.ID > withdb.MaxLocation {
+			withdb.MaxLocation = loc.ID
+		}
+		withdb.MxLocation.Unlock()
 	}
 	txn.Commit()
 
 	return nil
 }
 
-func visit(file *os.File, db *memdb.MemDB) error {
+func visit(file *os.File, withdb *db.WithMax) error {
 	defer file.Close()
 
 	data := struct {
@@ -165,11 +177,17 @@ func visit(file *os.File, db *memdb.MemDB) error {
 		return fmt.Errorf("Couldn't parse visits file. %v", err)
 	}
 
-	txn := db.Txn(true)
+	txn := withdb.DB.Txn(true)
 	for _, visit := range data.Visits {
 		if err := txn.Insert("visit", visit); err != nil {
 			return err
 		}
+
+		withdb.MxVisit.Lock()
+		if visit.ID > withdb.MaxVisit {
+			withdb.MaxVisit = visit.ID
+		}
+		withdb.MxVisit.Unlock()
 	}
 	txn.Commit()
 
