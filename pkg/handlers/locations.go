@@ -137,7 +137,8 @@ func (h *Handler) LocationMark(w http.ResponseWriter, r *http.Request, ps httpro
 	var avg float32
 	if visitors > 0 {
 		avg = float32(totalMark) / float32(visitors)
-		writeResponse(w, http.StatusOK, map[string]float32{"avg": avg})
+		avs := &Avg{Avg: avg}
+		writeResponse(w, http.StatusOK, avs)
 		return
 	}
 
