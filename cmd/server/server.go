@@ -21,10 +21,12 @@ func main() {
 
 	withdb := db.NewWithMax(mem)
 
-	err = data.Import(withdb)
-	if err != nil {
-		log.Fatal(err)
-	}
+	go func() {
+		err = data.Import(withdb)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}()
 
 	stamp, err := data.LocalTime()
 	if err != nil {
