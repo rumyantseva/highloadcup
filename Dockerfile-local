@@ -1,0 +1,11 @@
+FROM busybox
+
+COPY bin/travels /
+
+# DON'T FORGET TO REMOVE THIS BEFORE SENDING SOLUTION!!!
+RUN mkdir -p /tmp/data
+COPY data/data.zip /tmp/data
+
+EXPOSE 80
+
+CMD ["/travels"]

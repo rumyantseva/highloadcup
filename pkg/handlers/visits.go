@@ -2,9 +2,11 @@ package handlers
 
 import (
 	"encoding/json"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/julienschmidt/httprouter"
 	"github.com/rumyantseva/highloadcup/pkg/db"
@@ -156,7 +158,7 @@ func (h *Handler) UpdateVisit(w http.ResponseWriter, r *http.Request, ps httprou
 	}
 
 	// Check if location exists
-	_, err = db.Visit(h.withdb.DB, uint(uid))
+	visit, err := db.Visit(h.withdb.DB, uint(uid))
 	if err != nil {
 		writeResponse(w, http.StatusNotFound, nil)
 		return
@@ -170,14 +172,26 @@ func (h *Handler) UpdateVisit(w http.ResponseWriter, r *http.Request, ps httprou
 	}{}
 
 	defer r.Body.Close()
-	err = json.NewDecoder(r.Body).Decode(&req)
+	body, err := ioutil.ReadAll(r.Body)
+	bodyString := string(body)
+	//log.Print(bodyString)
+
+	// if body contains null, ignore it
+	if strings.Contains(bodyString, "null") {
+		writeResponse(w, http.StatusBadRequest, nil)
+		return
+	}
+
+	err = json.Unmarshal(body, &req)
+
+	//err = json.NewDecoder(r.Body).Decode(&req)
 
 	if err != nil {
 		writeResponse(w, http.StatusBadRequest, nil)
 		return
 	}
 
-	if req.User == nil || req.Location == nil || req.VisitedAt == nil ||
+	/*if req.User == nil || req.Location == nil || req.VisitedAt == nil ||
 		req.Mark == nil {
 		writeResponse(w, http.StatusBadRequest, nil)
 		return
@@ -189,10 +203,23 @@ func (h *Handler) UpdateVisit(w http.ResponseWriter, r *http.Request, ps httprou
 		VisitedAt: *req.VisitedAt,
 		Mark:      *req.Mark,
 		ID:        uint(uid),
+	}()*/
+
+	if req.User != nil {
+		visit.User = *req.User
+	}
+	if req.Location != nil {
+		visit.Location = *req.Location
+	}
+	if req.VisitedAt != nil {
+		visit.VisitedAt = *req.VisitedAt
+	}
+	if req.Mark != nil {
+		visit.Mark = *req.Mark
 	}
 
 	txn := h.withdb.DB.Txn(true)
-	err = txn.Insert("visit", visit)
+	err = txn.Insert("visit", *visit)
 	if err != nil {
 		log.Print(err)
 		writeResponse(w, http.StatusInternalServerError, nil)

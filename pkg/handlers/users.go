@@ -2,9 +2,11 @@ package handlers
 
 import (
 	"encoding/json"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/julienschmidt/httprouter"
 	"github.com/rumyantseva/highloadcup/pkg/db"
@@ -53,29 +55,41 @@ func (h *Handler) UpdateUser(w http.ResponseWriter, r *http.Request, ps httprout
 	}
 
 	// Check if user exists
-	_, err = db.User(h.withdb.DB, uint(uid))
+	user, err := db.User(h.withdb.DB, uint(uid))
 	if err != nil {
 		writeResponse(w, http.StatusNotFound, nil)
 		return
 	}
 
 	req := struct {
-		FirstName *string `json:"first_name,omitempty"`
-		LastName  *string `json:"last_name,omitempty"`
-		BirthDate *int    `json:"birth_date,omitempty"`
-		Gender    *string `json:"gender,omitempty"`
-		Email     *string `json:"email,omitempty"`
+		FirstName *string `json:"first_name"`
+		LastName  *string `json:"last_name"`
+		BirthDate *int    `json:"birth_date"`
+		Gender    *string `json:"gender"`
+		Email     *string `json:"email"`
 	}{}
 
 	defer r.Body.Close()
-	err = json.NewDecoder(r.Body).Decode(&req)
+	body, err := ioutil.ReadAll(r.Body)
+	bodyString := string(body)
+	//log.Print(bodyString)
+
+	// if body contains null, ignore it
+	if strings.Contains(bodyString, "null") {
+		writeResponse(w, http.StatusBadRequest, nil)
+		return
+	}
+
+	err = json.Unmarshal(body, &req)
+	//err = json.NewDecoder(r.Body).Decode(&req)
+	//log.Printf("%+v", req)
 
 	if err != nil {
 		writeResponse(w, http.StatusBadRequest, nil)
 		return
 	}
 
-	if req.FirstName == nil || req.LastName == nil || req.BirthDate == nil ||
+	/*if req.FirstName == nil || req.LastName == nil || req.BirthDate == nil ||
 		req.Gender == nil || req.Email == nil {
 		writeResponse(w, http.StatusBadRequest, nil)
 		return
@@ -88,10 +102,26 @@ func (h *Handler) UpdateUser(w http.ResponseWriter, r *http.Request, ps httprout
 		Gender:    *req.Gender,
 		Email:     *req.Email,
 		ID:        uint(uid),
+	}*/
+
+	if req.FirstName != nil {
+		user.FirstName = *req.FirstName
+	}
+	if req.LastName != nil {
+		user.LastName = *req.LastName
+	}
+	if req.BirthDate != nil {
+		user.BirthDate = *req.BirthDate
+	}
+	if req.Gender != nil {
+		user.Gender = *req.Gender
+	}
+	if req.Email != nil {
+		user.Email = *req.Email
 	}
 
 	txn := h.withdb.DB.Txn(true)
-	err = txn.Insert("user", user)
+	err = txn.Insert("user", *user)
 	if err != nil {
 		log.Print(err)
 		writeResponse(w, http.StatusInternalServerError, nil)

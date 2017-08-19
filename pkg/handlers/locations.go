@@ -2,9 +2,11 @@ package handlers
 
 import (
 	"encoding/json"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/julienschmidt/httprouter"
 	"github.com/rumyantseva/highloadcup/pkg/db"
@@ -44,6 +46,7 @@ func (h *Handler) LocationMark(w http.ResponseWriter, r *http.Request, ps httpro
 	uid, err := strconv.ParseUint(id, 10, 32)
 
 	if err != nil {
+		log.Printf("Couldn't parse id: %s", id)
 		writeResponse(w, http.StatusBadRequest, nil)
 		return
 	}
@@ -100,6 +103,10 @@ func (h *Handler) LocationMark(w http.ResponseWriter, r *http.Request, ps httpro
 	}
 
 	gender := r.URL.Query().Get("gender")
+	if len(gender) > 0 && gender != "f" && gender != "m" {
+		writeResponse(w, http.StatusBadRequest, nil)
+		return
+	}
 
 	checker := NewLocationCheker(fromDate, toDate, fromAge, toAge, gender, h.current)
 
@@ -152,7 +159,7 @@ func (h *Handler) UpdateLocation(w http.ResponseWriter, r *http.Request, ps http
 	}
 
 	// Check if location exists
-	_, err = db.Location(h.withdb.DB, uint(uid))
+	location, err := db.Location(h.withdb.DB, uint(uid))
 	if err != nil {
 		writeResponse(w, http.StatusNotFound, nil)
 		return
@@ -166,14 +173,25 @@ func (h *Handler) UpdateLocation(w http.ResponseWriter, r *http.Request, ps http
 	}{}
 
 	defer r.Body.Close()
-	err = json.NewDecoder(r.Body).Decode(&req)
+	body, err := ioutil.ReadAll(r.Body)
+	bodyString := string(body)
+	//log.Print(bodyString)
+
+	// if body contains null, ignore it
+	if strings.Contains(bodyString, "null") {
+		writeResponse(w, http.StatusBadRequest, nil)
+		return
+	}
+
+	err = json.Unmarshal(body, &req)
+	//err = json.NewDecoder(r.Body).Decode(&req)
 
 	if err != nil {
 		writeResponse(w, http.StatusBadRequest, nil)
 		return
 	}
 
-	if req.Distance == nil || req.City == nil || req.Place == nil ||
+	/*if req.Distance == nil || req.City == nil || req.Place == nil ||
 		req.Country == nil {
 		writeResponse(w, http.StatusBadRequest, nil)
 		return
@@ -185,10 +203,23 @@ func (h *Handler) UpdateLocation(w http.ResponseWriter, r *http.Request, ps http
 		Place:    *req.Place,
 		Country:  *req.Country,
 		ID:       uint(uid),
+	}*/
+
+	if req.Distance != nil {
+		location.Distance = *req.Distance
+	}
+	if req.City != nil {
+		location.City = *req.City
+	}
+	if req.Place != nil {
+		location.Place = *req.Place
+	}
+	if req.Country != nil {
+		location.Country = *req.Country
 	}
 
 	txn := h.withdb.DB.Txn(true)
-	err = txn.Insert("location", location)
+	err = txn.Insert("location", *location)
 	if err != nil {
 		log.Print(err)
 		writeResponse(w, http.StatusInternalServerError, nil)
