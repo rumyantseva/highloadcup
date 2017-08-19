@@ -6,10 +6,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/rumyantseva/highloadcup/pkg/db"
 	"github.com/rumyantseva/highloadcup/pkg/models"
@@ -41,7 +41,6 @@ func Import(withdb *db.WithMax) (int, error) {
 	var userFiles []*zip.File
 	var locationFiles []*zip.File
 	var visitFiles []*zip.File
-	var optionsFile *zip.File
 	for _, file := range reader.File {
 		if strings.HasPrefix(file.Name, "users") {
 			userFiles = append(userFiles, file)
@@ -49,8 +48,6 @@ func Import(withdb *db.WithMax) (int, error) {
 			locationFiles = append(locationFiles, file)
 		} else if strings.HasPrefix(file.Name, "visits") {
 			visitFiles = append(visitFiles, file)
-		} else if strings.HasPrefix(file.Name, "options") {
-			optionsFile = file
 		}
 	}
 
@@ -130,12 +127,7 @@ func Import(withdb *db.WithMax) (int, error) {
 	wg.Wait()
 
 	log.Print("Import options...")
-	if optionsFile == nil {
-		log.Print("There is no options file here!")
-		return int(time.Now().Unix()), nil
-	}
-
-	file, err := optionsFile.Open()
+	file, err := os.Open("/tmp/data/options.txt")
 	if err != nil {
 		return 0, err
 	}
