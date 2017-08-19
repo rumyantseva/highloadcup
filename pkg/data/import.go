@@ -16,7 +16,7 @@ import (
 )
 
 // Import prepared data from data files.
-func Import(withdb *db.WithMax) (int, error) {
+func Import(withdb *db.WithMax) error {
 	archive := "/tmp/data/data.zip"
 	//target := "/tmp/data/unzip"
 
@@ -35,7 +35,7 @@ func Import(withdb *db.WithMax) (int, error) {
 
 	reader, err := zip.OpenReader(archive)
 	if err != nil {
-		return 0, err
+		return err
 	}
 
 	var userFiles []*zip.File
@@ -126,6 +126,10 @@ func Import(withdb *db.WithMax) (int, error) {
 	*/
 	wg.Wait()
 
+	return nil
+}
+
+func LocalTime() (int, error) {
 	log.Print("Import options...")
 	file, err := os.Open("/tmp/data/options.txt")
 	if err != nil {

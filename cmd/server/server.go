@@ -21,8 +21,12 @@ func main() {
 
 	withdb := db.NewWithMax(mem)
 
-	var stamp int
-	stamp, err = data.Import(withdb)
+	err = data.Import(withdb)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	stamp, err := data.LocalTime()
 	if err != nil {
 		log.Fatal(err)
 	}
