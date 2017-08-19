@@ -44,12 +44,12 @@ func (lc *LocationChecker) Check(mem *memdb.MemDB, visit *models.Visit) bool {
 			return false
 		}
 
-		born := time.Unix(int64(user.BirthDate), 0)
-		if lc.fromAge != nil && *lc.fromAge > age(born) {
+		age := age(lc.current, user.BirthDate)
+		if lc.fromAge != nil && *lc.fromAge > age {
 			return false
 		}
 
-		if lc.toAge != nil && *lc.toAge <= age(born) {
+		if lc.toAge != nil && *lc.toAge <= age {
 			return false
 		}
 
@@ -61,10 +61,11 @@ func (lc *LocationChecker) Check(mem *memdb.MemDB, visit *models.Visit) bool {
 	return true
 }
 
-func age(birthday time.Time) int {
-	now := time.Now()
-	years := now.Year() - birthday.Year()
-	if now.YearDay() < birthday.YearDay() {
+func age(current int, birthday int) int {
+	now := time.Unix(int64(current), 0)
+	born := time.Unix(int64(birthday), 0)
+	years := now.Year() - born.Year()
+	if now.YearDay() < born.YearDay() {
 		years--
 	}
 	return years

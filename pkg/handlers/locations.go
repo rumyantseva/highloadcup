@@ -100,7 +100,7 @@ func (h *Handler) LocationMark(w http.ResponseWriter, r *http.Request, ps httpro
 
 	gender := r.URL.Query().Get("gender")
 
-	checker := NewLocationCheker(fromDate, toDate, fromAge, toAge, gender)
+	checker := NewLocationCheker(fromDate, toDate, fromAge, toAge, gender, h.current)
 
 	txn := h.db.Txn(false)
 	iter, err := txn.Get("visit", "location_id", uid)

@@ -37,7 +37,7 @@ func (vc *VisitChecker) Check(mem *memdb.MemDB, visit *models.Visit) bool {
 			return false
 		}
 
-		if vc.toDistance != nil && *vc.toDistance < loc.Distance {
+		if vc.toDistance != nil && *vc.toDistance <= loc.Distance {
 			return false
 		}
 

@@ -20,13 +20,15 @@ func main() {
 	}
 
 	var stamp int
-	err = data.Import(mem, &stamp)
+	stamp, err = data.Import(mem)
 	if err != nil {
 		log.Fatal(err)
 	}
 
+	log.Printf("`Current` time is: %d", stamp)
+
 	r := httprouter.New()
-	h := handlers.NewHandler(mem)
+	h := handlers.NewHandler(mem, stamp)
 
 	r.GET("/users/:id", h.User)
 	r.GET("/locations/:id", h.Location)

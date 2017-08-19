@@ -9,12 +9,14 @@ import (
 )
 
 type Handler struct {
-	db *memdb.MemDB
+	db      *memdb.MemDB
+	current int
 }
 
-func NewHandler(db *memdb.MemDB) *Handler {
+func NewHandler(db *memdb.MemDB, current int) *Handler {
 	return &Handler{
-		db: db,
+		db:      db,
+		current: current,
 	}
 }
 
@@ -27,7 +29,6 @@ func writeResponse(w http.ResponseWriter, code int, resp interface{}) {
 	}
 
 	enc := json.NewEncoder(w)
-	enc.SetEscapeHTML(false)
 	err := enc.Encode(resp)
 	if err != nil {
 		log.Printf("Couldn't encode response %+v to HTTP response body.", resp)

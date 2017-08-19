@@ -119,15 +119,14 @@ func (h *Handler) UserVisits(w http.ResponseWriter, r *http.Request, ps httprout
 				Place:     loc.Place,
 			}
 
-			// todo: order by visited at
-			/*	var i int
-				for i = 0; i < len(visits); i++ {
-					if visit.VisitedAt > visits[i].VisitedAt {
-						break
-					}
+			// order by visited at
+			var i int
+			for i = 0; i < len(visits); i++ {
+				if visit.VisitedAt < visits[i].VisitedAt {
+					break
 				}
-				visits = append(visits[:i+1], append([]models.VisitExt{visitExt}, visits[i+1:]...)...)*/
-			visits = append(visits, visitExt)
+			}
+			visits = append(visits[:i], append([]models.VisitExt{visitExt}, visits[i:]...)...)
 		}
 	}
 	txn.Abort()

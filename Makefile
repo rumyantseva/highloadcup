@@ -12,4 +12,5 @@ container: build
 	docker build -t ${APP}:latest .
 
 run: container
-	docker run --rm -p 80:80 -t ${APP}:latest
+	docker stop ${APP} || true 
+	docker run --name ${APP} --rm -p 80:80 -t ${APP}:latest

@@ -15,7 +15,7 @@ import (
 )
 
 // Import prepared data from data files.
-func Import(db *memdb.MemDB, stamp *int) error {
+func Import(db *memdb.MemDB) (int, error) {
 	archive := "/tmp/data/data.zip"
 	target := "/tmp/data/unzip"
 
@@ -29,7 +29,7 @@ func Import(db *memdb.MemDB, stamp *int) error {
 		time.Sleep(2 * time.Second)
 	}
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	max := 1000000
@@ -94,21 +94,20 @@ func Import(db *memdb.MemDB, stamp *int) error {
 	log.Print("Import options...")
 	file, err := os.Open(target + "/options.txt")
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	line, _, err := bufio.NewReader(file).ReadLine()
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	st, err := strconv.Atoi(string(line))
 	if err != nil {
-		return err
+		return 0, err
 	}
-	stamp = &st
 
-	return nil
+	return st, nil
 }
 
 func user(file *os.File, db *memdb.MemDB) error {
