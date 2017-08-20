@@ -75,7 +75,7 @@ func (h *Handler) UpdateUser(w http.ResponseWriter, r *http.Request, ps httprout
 	//log.Print(bodyString)
 
 	// if body contains null, ignore it
-	if strings.Contains(bodyString, "null") {
+	if strings.Contains(bodyString, ": null") {
 		writeResponse(w, http.StatusBadRequest, nil)
 		return
 	}
