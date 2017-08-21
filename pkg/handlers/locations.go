@@ -254,22 +254,24 @@ func (h *Handler) CreateLocation(w http.ResponseWriter, r *http.Request, ps http
 		return
 	}
 
-	location := models.Location{
-		Distance: *req.Distance,
-		City:     *req.City,
-		Place:    *req.Place,
-		Country:  *req.Country,
-		ID:       *req.ID,
-	}
+	go func() {
+		location := models.Location{
+			Distance: *req.Distance,
+			City:     *req.City,
+			Place:    *req.Place,
+			Country:  *req.Country,
+			ID:       *req.ID,
+		}
 
-	txn := h.withdb.DB.Txn(true)
-	err = txn.Insert("location", location)
-	if err != nil {
-		log.Print(err)
-		writeResponse(w, http.StatusInternalServerError, nil)
-		return
-	}
-	txn.Commit()
+		txn := h.withdb.DB.Txn(true)
+		err = txn.Insert("location", location)
+		if err != nil {
+			log.Print(err)
+			writeResponse(w, http.StatusInternalServerError, nil)
+			return
+		}
+		txn.Commit()
+	}()
 
 	writeResponse(w, http.StatusOK, struct{}{})
 }

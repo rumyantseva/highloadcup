@@ -104,30 +104,32 @@ func (h *Handler) UpdateUser(w http.ResponseWriter, r *http.Request, ps httprout
 		ID:        uint(uid),
 	}*/
 
-	if req.FirstName != nil {
-		user.FirstName = *req.FirstName
-	}
-	if req.LastName != nil {
-		user.LastName = *req.LastName
-	}
-	if req.BirthDate != nil {
-		user.BirthDate = *req.BirthDate
-	}
-	if req.Gender != nil {
-		user.Gender = *req.Gender
-	}
-	if req.Email != nil {
-		user.Email = *req.Email
-	}
+	go func() {
+		if req.FirstName != nil {
+			user.FirstName = *req.FirstName
+		}
+		if req.LastName != nil {
+			user.LastName = *req.LastName
+		}
+		if req.BirthDate != nil {
+			user.BirthDate = *req.BirthDate
+		}
+		if req.Gender != nil {
+			user.Gender = *req.Gender
+		}
+		if req.Email != nil {
+			user.Email = *req.Email
+		}
 
-	txn := h.withdb.DB.Txn(true)
-	err = txn.Insert("user", *user)
-	if err != nil {
-		log.Print(err)
-		writeResponse(w, http.StatusInternalServerError, nil)
-		return
-	}
-	txn.Commit()
+		txn := h.withdb.DB.Txn(true)
+		err = txn.Insert("user", *user)
+		if err != nil {
+			log.Print(err)
+			writeResponse(w, http.StatusInternalServerError, nil)
+			return
+		}
+		txn.Commit()
+	}()
 
 	writeResponse(w, http.StatusOK, struct{}{})
 }
@@ -162,23 +164,25 @@ func (h *Handler) CreateUser(w http.ResponseWriter, r *http.Request, ps httprout
 
 	//h.withdb.MaxUser++
 
-	user := models.User{
-		FirstName: *req.FirstName,
-		LastName:  *req.LastName,
-		BirthDate: *req.BirthDate,
-		Gender:    *req.Gender,
-		Email:     *req.Email,
-		ID:        *req.ID,
-	}
+	go func() {
+		user := models.User{
+			FirstName: *req.FirstName,
+			LastName:  *req.LastName,
+			BirthDate: *req.BirthDate,
+			Gender:    *req.Gender,
+			Email:     *req.Email,
+			ID:        *req.ID,
+		}
 
-	txn := h.withdb.DB.Txn(true)
-	err = txn.Insert("user", user)
-	if err != nil {
-		log.Print(err)
-		writeResponse(w, http.StatusInternalServerError, nil)
-		return
-	}
-	txn.Commit()
+		txn := h.withdb.DB.Txn(true)
+		err = txn.Insert("user", user)
+		if err != nil {
+			log.Print(err)
+			writeResponse(w, http.StatusInternalServerError, nil)
+			return
+		}
+		txn.Commit()
+	}()
 
 	writeResponse(w, http.StatusOK, struct{}{})
 }
