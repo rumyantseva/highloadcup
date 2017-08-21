@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -15,6 +16,13 @@ import (
 
 func (h *Handler) Visit(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	id := ps.ByName("id")
+
+	fromCache := h.visit.Get(id)
+	if fromCache != nil {
+		writeResponseFromBytes(w, http.StatusOK, fromCache)
+		return
+	}
+
 	uid, err := strconv.ParseUint(id, 10, 32)
 
 	if err != nil {
@@ -219,6 +227,8 @@ func (h *Handler) UpdateVisit(w http.ResponseWriter, r *http.Request, ps httprou
 			visit.Mark = *req.Mark
 		}
 
+		go h.visit.SetFrom(fmt.Sprint(visit.ID), visit)
+
 		txn := h.withdb.DB.Txn(true)
 		err = txn.Insert("visit", *visit)
 		if err != nil {
@@ -263,6 +273,8 @@ func (h *Handler) CreateVisit(w http.ResponseWriter, r *http.Request, ps httprou
 			Mark:      *req.Mark,
 			ID:        *req.ID,
 		}
+
+		go h.visit.SetFrom(fmt.Sprint(visit.ID), visit)
 
 		txn := h.withdb.DB.Txn(true)
 		err = txn.Insert("visit", visit)

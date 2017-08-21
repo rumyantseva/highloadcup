@@ -11,12 +11,32 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/rumyantseva/highloadcup/pkg/cache"
 	"github.com/rumyantseva/highloadcup/pkg/db"
 	"github.com/rumyantseva/highloadcup/pkg/models"
 )
 
+type Storage struct {
+	DB *db.WithMax
+
+	User     *cache.Storage
+	Location *cache.Storage
+	Visit    *cache.Storage
+}
+
+func NewStorage(
+	withdb *db.WithMax, user *cache.Storage, location *cache.Storage, visit *cache.Storage,
+) *Storage {
+	return &Storage{
+		DB:       withdb,
+		User:     user,
+		Location: location,
+		Visit:    visit,
+	}
+}
+
 // Import prepared data from data files.
-func Import(withdb *db.WithMax) error {
+func (s *Storage) Import() error {
 	archive := "/tmp/data/data.zip"
 	//target := "/tmp/data/unzip"
 
@@ -59,7 +79,7 @@ func Import(withdb *db.WithMax) error {
 
 	go func() {
 		for _, file := range userFiles {
-			err = user(file, withdb)
+			err = s.user(file)
 			if err != nil {
 				log.Printf("Couldn't parse user: %v", err)
 			}
@@ -70,7 +90,7 @@ func Import(withdb *db.WithMax) error {
 
 	go func() {
 		for _, file := range locationFiles {
-			err = location(file, withdb)
+			err = s.location(file)
 			if err != nil {
 				log.Printf("Couldn't parse location: %v", err)
 			}
@@ -81,7 +101,7 @@ func Import(withdb *db.WithMax) error {
 
 	go func() {
 		for _, file := range visitFiles {
-			err = visit(file, withdb)
+			err = s.visit(file)
 			if err != nil {
 				log.Printf("Couldn't parse visit: %v", err)
 			}
@@ -150,7 +170,7 @@ func LocalTime() (int, error) {
 	return st, nil
 }
 
-func user(file *zip.File, withdb *db.WithMax) error {
+func (s *Storage) user(file *zip.File) error {
 	rc, err := file.Open()
 	if err != nil {
 		return err
@@ -165,11 +185,13 @@ func user(file *zip.File, withdb *db.WithMax) error {
 		return fmt.Errorf("Couldn't parse user file. %v", err)
 	}
 
-	txn := withdb.DB.Txn(true)
+	txn := s.DB.DB.Txn(true)
 	for _, user := range data.Users {
 		if err := txn.Insert("user", user); err != nil {
 			return err
 		}
+
+		go s.User.SetFrom(fmt.Sprint(user.ID), user)
 
 		/*withdb.MxUser.Lock()
 		if user.ID > withdb.MaxUser {
@@ -182,7 +204,7 @@ func user(file *zip.File, withdb *db.WithMax) error {
 	return nil
 }
 
-func location(file *zip.File, withdb *db.WithMax) error {
+func (s *Storage) location(file *zip.File) error {
 	rc, err := file.Open()
 	if err != nil {
 		return err
@@ -197,11 +219,13 @@ func location(file *zip.File, withdb *db.WithMax) error {
 		return fmt.Errorf("Couldn't parse locations file. %v", err)
 	}
 
-	txn := withdb.DB.Txn(true)
+	txn := s.DB.DB.Txn(true)
 	for _, loc := range data.Locations {
 		if err := txn.Insert("location", loc); err != nil {
 			return err
 		}
+
+		go s.Location.SetFrom(fmt.Sprint(loc.ID), loc)
 
 		/*withdb.MxLocation.Lock()
 		if loc.ID > withdb.MaxLocation {
@@ -214,7 +238,7 @@ func location(file *zip.File, withdb *db.WithMax) error {
 	return nil
 }
 
-func visit(file *zip.File, withdb *db.WithMax) error {
+func (s *Storage) visit(file *zip.File) error {
 	rc, err := file.Open()
 	if err != nil {
 		return err
@@ -229,11 +253,13 @@ func visit(file *zip.File, withdb *db.WithMax) error {
 		return fmt.Errorf("Couldn't parse visits file. %v", err)
 	}
 
-	txn := withdb.DB.Txn(true)
+	txn := s.DB.DB.Txn(true)
 	for _, visit := range data.Visits {
 		if err := txn.Insert("visit", visit); err != nil {
 			return err
 		}
+
+		go s.Visit.SetFrom(fmt.Sprint(visit.ID), visit)
 
 		/*withdb.MxVisit.Lock()
 		if visit.ID > withdb.MaxVisit {

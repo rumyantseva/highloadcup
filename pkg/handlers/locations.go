@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -15,6 +16,13 @@ import (
 
 func (h *Handler) Location(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	id := ps.ByName("id")
+
+	fromCache := h.location.Get(id)
+	if fromCache != nil {
+		writeResponseFromBytes(w, http.StatusOK, fromCache)
+		return
+	}
+
 	uid, err := strconv.ParseUint(id, 10, 32)
 
 	if err != nil {
@@ -206,27 +214,32 @@ func (h *Handler) UpdateLocation(w http.ResponseWriter, r *http.Request, ps http
 		ID:       uint(uid),
 	}*/
 
-	if req.Distance != nil {
-		location.Distance = *req.Distance
-	}
-	if req.City != nil {
-		location.City = *req.City
-	}
-	if req.Place != nil {
-		location.Place = *req.Place
-	}
-	if req.Country != nil {
-		location.Country = *req.Country
-	}
+	go func() {
 
-	txn := h.withdb.DB.Txn(true)
-	err = txn.Insert("location", *location)
-	if err != nil {
-		log.Print(err)
-		writeResponse(w, http.StatusInternalServerError, nil)
-		return
-	}
-	txn.Commit()
+		if req.Distance != nil {
+			location.Distance = *req.Distance
+		}
+		if req.City != nil {
+			location.City = *req.City
+		}
+		if req.Place != nil {
+			location.Place = *req.Place
+		}
+		if req.Country != nil {
+			location.Country = *req.Country
+		}
+
+		go h.location.SetFrom(fmt.Sprint(location.ID), location)
+
+		txn := h.withdb.DB.Txn(true)
+		err = txn.Insert("location", *location)
+		if err != nil {
+			log.Print(err)
+			writeResponse(w, http.StatusInternalServerError, nil)
+			return
+		}
+		txn.Commit()
+	}()
 
 	writeResponse(w, http.StatusOK, struct{}{})
 }
@@ -262,6 +275,8 @@ func (h *Handler) CreateLocation(w http.ResponseWriter, r *http.Request, ps http
 			Country:  *req.Country,
 			ID:       *req.ID,
 		}
+
+		go h.location.SetFrom(fmt.Sprint(location.ID), location)
 
 		txn := h.withdb.DB.Txn(true)
 		err = txn.Insert("location", location)
