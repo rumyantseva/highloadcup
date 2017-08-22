@@ -141,7 +141,7 @@ func (h *Handler) UpdateUser(w http.ResponseWriter, r *http.Request, ps httprout
 		txn.Commit()
 	}()
 
-	writeResponse(w, http.StatusOK, struct{}{})
+	writeResponseFromBytes(w, http.StatusOK, []byte("{}"))
 }
 
 func (h *Handler) CreateUser(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
@@ -196,5 +196,5 @@ func (h *Handler) CreateUser(w http.ResponseWriter, r *http.Request, ps httprout
 		txn.Commit()
 	}()
 
-	writeResponse(w, http.StatusOK, struct{}{})
+	writeResponseFromBytes(w, http.StatusOK, []byte("{}"))
 }

@@ -239,7 +239,7 @@ func (h *Handler) UpdateVisit(w http.ResponseWriter, r *http.Request, ps httprou
 		txn.Commit()
 	}()
 
-	writeResponse(w, http.StatusOK, struct{}{})
+	writeResponseFromBytes(w, http.StatusOK, []byte("{}"))
 }
 
 func (h *Handler) CreateVisit(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
@@ -286,5 +286,5 @@ func (h *Handler) CreateVisit(w http.ResponseWriter, r *http.Request, ps httprou
 		txn.Commit()
 	}()
 
-	writeResponse(w, http.StatusOK, struct{}{})
+	writeResponseFromBytes(w, http.StatusOK, []byte("{}"))
 }

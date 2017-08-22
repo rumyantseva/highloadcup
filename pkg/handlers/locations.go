@@ -241,7 +241,7 @@ func (h *Handler) UpdateLocation(w http.ResponseWriter, r *http.Request, ps http
 		txn.Commit()
 	}()
 
-	writeResponse(w, http.StatusOK, struct{}{})
+	writeResponseFromBytes(w, http.StatusOK, []byte("{}"))
 }
 
 func (h *Handler) CreateLocation(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
@@ -288,5 +288,5 @@ func (h *Handler) CreateLocation(w http.ResponseWriter, r *http.Request, ps http
 		txn.Commit()
 	}()
 
-	writeResponse(w, http.StatusOK, struct{}{})
+	writeResponseFromBytes(w, http.StatusOK, []byte("{}"))
 }
