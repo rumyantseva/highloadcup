@@ -3,69 +3,69 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"strconv"
 	"strings"
 
-	"github.com/julienschmidt/httprouter"
 	"github.com/rumyantseva/highloadcup/pkg/db"
 	"github.com/rumyantseva/highloadcup/pkg/models"
+	"github.com/valyala/fasthttp"
 )
 
-func (h *Handler) User(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	id := ps.ByName("id")
+func (h *Handler) User(ctx *fasthttp.RequestCtx) {
+	id := ctx.UserValue("id").(string)
 
 	fromCache := h.user.Get(id)
 	if fromCache != nil {
-		writeResponseFromBytes(w, http.StatusOK, fromCache)
+		writeResponseFromBytes(ctx, http.StatusOK, fromCache)
 		return
 	}
 
 	uid, err := strconv.ParseUint(id, 10, 32)
 
 	if err != nil {
-		writeResponse(w, http.StatusNotFound, nil)
+		writeResponse(ctx, http.StatusNotFound, nil)
 		return
 	}
 
 	txn := h.withdb.DB.Txn(false)
 	raw, err := txn.First("user", "id", uid)
 	if err != nil {
-		writeResponse(w, http.StatusInternalServerError, err)
+		writeResponse(ctx, http.StatusInternalServerError, err)
 		return
 	}
 	txn.Abort()
 
 	if raw == nil {
-		writeResponse(w, http.StatusNotFound, nil)
+		writeResponse(ctx, http.StatusNotFound, nil)
 		return
 	}
 
 	var user models.User
 	user = raw.(models.User)
-	writeResponse(w, http.StatusOK, user)
+	writeResponse(ctx, http.StatusOK, user)
 }
 
-func (h *Handler) UpdateUser(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	id := ps.ByName("id")
+func (h *Handler) UpdateUser(ctx *fasthttp.RequestCtx) {
+	id := ctx.UserValue("id").(string)
+
 	if id == "new" {
-		h.CreateUser(w, r, ps)
+		h.CreateUser(ctx)
 		return
 	}
 
 	uid, err := strconv.ParseUint(id, 10, 32)
 
 	if err != nil {
-		writeResponse(w, http.StatusNotFound, nil)
+		writeResponse(ctx, http.StatusNotFound, nil)
 		return
 	}
 
 	// Check if user exists
 	user, err := db.User(h.withdb.DB, uint(uid))
 	if err != nil {
-		writeResponse(w, http.StatusNotFound, nil)
+		writeResponse(ctx, http.StatusNotFound, nil)
 		return
 	}
 
@@ -77,23 +77,23 @@ func (h *Handler) UpdateUser(w http.ResponseWriter, r *http.Request, ps httprout
 		Email     *string `json:"email"`
 	}{}
 
-	defer r.Body.Close()
-	body, err := ioutil.ReadAll(r.Body)
-	bodyString := string(body)
+	//	defer r.Body.Close()
+	//	body, err := ioutil.ReadAll(r.Body)
+	bodyString := string(ctx.PostBody())
 	//log.Print(bodyString)
 
 	// if body contains null, ignore it
 	if strings.Contains(bodyString, ": null") {
-		writeResponse(w, http.StatusBadRequest, nil)
+		writeResponse(ctx, http.StatusBadRequest, nil)
 		return
 	}
 
-	err = json.Unmarshal(body, &req)
+	err = json.Unmarshal(ctx.PostBody(), &req)
 	//err = json.NewDecoder(r.Body).Decode(&req)
 	//log.Printf("%+v", req)
 
 	if err != nil {
-		writeResponse(w, http.StatusBadRequest, nil)
+		writeResponse(ctx, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -135,16 +135,16 @@ func (h *Handler) UpdateUser(w http.ResponseWriter, r *http.Request, ps httprout
 		err = txn.Insert("user", *user)
 		if err != nil {
 			log.Print(err)
-			writeResponse(w, http.StatusInternalServerError, nil)
+			writeResponse(ctx, http.StatusInternalServerError, nil)
 			return
 		}
 		txn.Commit()
 	}()
 
-	writeResponseFromBytes(w, http.StatusOK, []byte("{}"))
+	writeResponseFromBytes(ctx, http.StatusOK, []byte("{}"))
 }
 
-func (h *Handler) CreateUser(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+func (h *Handler) CreateUser(ctx *fasthttp.RequestCtx) {
 
 	req := struct {
 		FirstName *string `json:"first_name,omitempty"`
@@ -155,17 +155,18 @@ func (h *Handler) CreateUser(w http.ResponseWriter, r *http.Request, ps httprout
 		ID        *uint   `json:"id,omitempty"`
 	}{}
 
-	defer r.Body.Close()
-	err := json.NewDecoder(r.Body).Decode(&req)
+	//	defer r.Body.Close()
+	//	err := json.NewDecoder(r.Body).Decode(&req)
+	err := json.Unmarshal(ctx.PostBody(), &req)
 
 	if err != nil {
-		writeResponse(w, http.StatusBadRequest, nil)
+		writeResponse(ctx, http.StatusBadRequest, nil)
 		return
 	}
 
 	if req.FirstName == nil || req.LastName == nil || req.BirthDate == nil ||
 		req.Gender == nil || req.Email == nil || req.ID == nil {
-		writeResponse(w, http.StatusBadRequest, nil)
+		writeResponse(ctx, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -190,11 +191,11 @@ func (h *Handler) CreateUser(w http.ResponseWriter, r *http.Request, ps httprout
 		err = txn.Insert("user", user)
 		if err != nil {
 			log.Print(err)
-			writeResponse(w, http.StatusInternalServerError, nil)
+			writeResponse(ctx, http.StatusInternalServerError, nil)
 			return
 		}
 		txn.Commit()
 	}()
 
-	writeResponseFromBytes(w, http.StatusOK, []byte("{}"))
+	writeResponseFromBytes(ctx, http.StatusOK, []byte("{}"))
 }

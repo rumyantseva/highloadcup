@@ -3,30 +3,29 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"strconv"
 	"strings"
 
-	"github.com/julienschmidt/httprouter"
 	"github.com/rumyantseva/highloadcup/pkg/db"
 	"github.com/rumyantseva/highloadcup/pkg/models"
+	"github.com/valyala/fasthttp"
 )
 
-func (h *Handler) Location(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	id := ps.ByName("id")
+func (h *Handler) Location(ctx *fasthttp.RequestCtx) {
+	id := ctx.UserValue("id").(string)
 
 	fromCache := h.location.Get(id)
 	if fromCache != nil {
-		writeResponseFromBytes(w, http.StatusOK, fromCache)
+		writeResponseFromBytes(ctx, http.StatusOK, fromCache)
 		return
 	}
 
 	uid, err := strconv.ParseUint(id, 10, 32)
 
 	if err != nil {
-		writeResponse(w, http.StatusBadRequest, nil)
+		writeResponse(ctx, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -34,85 +33,85 @@ func (h *Handler) Location(w http.ResponseWriter, r *http.Request, ps httprouter
 	raw, err := txn.First("location", "id", uid)
 	if err != nil {
 		log.Print(err)
-		writeResponse(w, http.StatusInternalServerError, nil)
+		writeResponse(ctx, http.StatusInternalServerError, nil)
 		return
 	}
 	txn.Abort()
 
 	if raw == nil {
-		writeResponse(w, http.StatusNotFound, nil)
+		writeResponse(ctx, http.StatusNotFound, nil)
 		return
 	}
 
 	var loc models.Location
 	loc = raw.(models.Location)
-	writeResponse(w, http.StatusOK, loc)
+	writeResponse(ctx, http.StatusOK, loc)
 }
 
-func (h *Handler) LocationMark(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	id := ps.ByName("id")
+func (h *Handler) LocationMark(ctx *fasthttp.RequestCtx) {
+	id := ctx.UserValue("id").(string)
 	uid, err := strconv.ParseUint(id, 10, 32)
 
 	if err != nil {
 		log.Printf("Couldn't parse id: %s", id)
-		writeResponse(w, http.StatusBadRequest, nil)
+		writeResponse(ctx, http.StatusBadRequest, nil)
 		return
 	}
 
 	// Check location
 	_, err = db.Location(h.withdb.DB, uint(uid))
 	if err != nil {
-		writeResponse(w, http.StatusNotFound, nil)
+		writeResponse(ctx, http.StatusNotFound, nil)
 		return
 	}
 
 	var fromDate *int
-	sFromDate := r.URL.Query().Get("fromDate")
+	sFromDate := string(ctx.URI().QueryArgs().Peek("fromDate"))
 	if len(sFromDate) > 0 {
 		iFromDate, err := strconv.Atoi(sFromDate)
 		if err != nil {
-			writeResponse(w, http.StatusBadRequest, nil)
+			writeResponse(ctx, http.StatusBadRequest, nil)
 			return
 		}
 		fromDate = &iFromDate
 	}
 
 	var toDate *int
-	sToDate := r.URL.Query().Get("toDate")
+	sToDate := string(ctx.URI().QueryArgs().Peek("toDate"))
 	if len(sToDate) > 0 {
 		iToDate, err := strconv.Atoi(sToDate)
 		if err != nil {
-			writeResponse(w, http.StatusBadRequest, nil)
+			writeResponse(ctx, http.StatusBadRequest, nil)
 			return
 		}
 		toDate = &iToDate
 	}
 
 	var fromAge *int
-	sFromAge := r.URL.Query().Get("fromAge")
+	sFromAge := string(ctx.URI().QueryArgs().Peek("fromAge"))
 	if len(sFromAge) > 0 {
 		iFromAge, err := strconv.Atoi(sFromAge)
 		if err != nil {
-			writeResponse(w, http.StatusBadRequest, nil)
+			writeResponse(ctx, http.StatusBadRequest, nil)
 			return
 		}
 		fromAge = &iFromAge
 	}
 
 	var toAge *int
-	sToAge := r.URL.Query().Get("toAge")
+	sToAge := string(ctx.URI().QueryArgs().Peek("toAge"))
 	if len(sToAge) > 0 {
 		iToAge, err := strconv.Atoi(sToAge)
 		if err != nil {
-			writeResponse(w, http.StatusBadRequest, nil)
+			writeResponse(ctx, http.StatusBadRequest, nil)
 			return
 		}
 		toAge = &iToAge
 	}
 
-	gender := r.URL.Query().Get("gender")
+	gender := string(ctx.URI().QueryArgs().Peek("gender"))
 	if len(gender) > 0 && gender != "f" && gender != "m" {
-		writeResponse(w, http.StatusBadRequest, nil)
+		writeResponse(ctx, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -122,7 +121,7 @@ func (h *Handler) LocationMark(w http.ResponseWriter, r *http.Request, ps httpro
 	iter, err := txn.Get("visit", "location_id", uid)
 	if err != nil {
 		log.Print(err)
-		writeResponse(w, http.StatusInternalServerError, nil)
+		writeResponse(ctx, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -146,31 +145,31 @@ func (h *Handler) LocationMark(w http.ResponseWriter, r *http.Request, ps httpro
 	if visitors > 0 {
 		avg = float32(totalMark) / float32(visitors)
 		avs := &Avg{Avg: avg}
-		writeResponse(w, http.StatusOK, avs)
+		writeResponse(ctx, http.StatusOK, avs)
 		return
 	}
 
-	writeResponse(w, http.StatusOK, map[string]int{"avg": 0})
+	writeResponse(ctx, http.StatusOK, map[string]int{"avg": 0})
 }
 
-func (h *Handler) UpdateLocation(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	id := ps.ByName("id")
+func (h *Handler) UpdateLocation(ctx *fasthttp.RequestCtx) {
+	id := ctx.UserValue("id").(string)
 	if id == "new" {
-		h.CreateLocation(w, r, ps)
+		h.CreateLocation(ctx)
 		return
 	}
 
 	uid, err := strconv.ParseUint(id, 10, 32)
 
 	if err != nil {
-		writeResponse(w, http.StatusNotFound, nil)
+		writeResponse(ctx, http.StatusNotFound, nil)
 		return
 	}
 
 	// Check if location exists
 	location, err := db.Location(h.withdb.DB, uint(uid))
 	if err != nil {
-		writeResponse(w, http.StatusNotFound, nil)
+		writeResponse(ctx, http.StatusNotFound, nil)
 		return
 	}
 
@@ -181,22 +180,21 @@ func (h *Handler) UpdateLocation(w http.ResponseWriter, r *http.Request, ps http
 		Country  *string `json:"country,omitempty"`
 	}{}
 
-	defer r.Body.Close()
-	body, err := ioutil.ReadAll(r.Body)
-	bodyString := string(body)
+	//defer ctx.PostBody().Close
+	bodyString := string(ctx.PostBody())
 	//log.Print(bodyString)
 
 	// if body contains null, ignore it
 	if strings.Contains(bodyString, "null") {
-		writeResponse(w, http.StatusBadRequest, nil)
+		writeResponse(ctx, http.StatusBadRequest, nil)
 		return
 	}
 
-	err = json.Unmarshal(body, &req)
+	err = json.Unmarshal(ctx.PostBody(), &req)
 	//err = json.NewDecoder(r.Body).Decode(&req)
 
 	if err != nil {
-		writeResponse(w, http.StatusBadRequest, nil)
+		writeResponse(ctx, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -235,16 +233,16 @@ func (h *Handler) UpdateLocation(w http.ResponseWriter, r *http.Request, ps http
 		err = txn.Insert("location", *location)
 		if err != nil {
 			log.Print(err)
-			writeResponse(w, http.StatusInternalServerError, nil)
+			writeResponse(ctx, http.StatusInternalServerError, nil)
 			return
 		}
 		txn.Commit()
 	}()
 
-	writeResponseFromBytes(w, http.StatusOK, []byte("{}"))
+	writeResponseFromBytes(ctx, http.StatusOK, []byte("{}"))
 }
 
-func (h *Handler) CreateLocation(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+func (h *Handler) CreateLocation(ctx *fasthttp.RequestCtx) {
 	req := struct {
 		Distance *int    `json:"distance,omitempty"`
 		City     *string `json:"city,omitempty"`
@@ -253,17 +251,18 @@ func (h *Handler) CreateLocation(w http.ResponseWriter, r *http.Request, ps http
 		ID       *uint   `json:"id,omitempty"`
 	}{}
 
-	defer r.Body.Close()
-	err := json.NewDecoder(r.Body).Decode(&req)
+	//defer r.Body.Close()
+	//err := json.NewDecoder(r.Body).Decode(&req)
+	err := json.Unmarshal(ctx.PostBody(), &req)
 
 	if err != nil {
-		writeResponse(w, http.StatusBadRequest, nil)
+		writeResponse(ctx, http.StatusBadRequest, nil)
 		return
 	}
 
 	if req.Distance == nil || req.City == nil || req.Place == nil ||
 		req.Country == nil || req.ID == nil {
-		writeResponse(w, http.StatusBadRequest, nil)
+		writeResponse(ctx, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -282,11 +281,11 @@ func (h *Handler) CreateLocation(w http.ResponseWriter, r *http.Request, ps http
 		err = txn.Insert("location", location)
 		if err != nil {
 			log.Print(err)
-			writeResponse(w, http.StatusInternalServerError, nil)
+			writeResponse(ctx, http.StatusInternalServerError, nil)
 			return
 		}
 		txn.Commit()
 	}()
 
-	writeResponseFromBytes(w, http.StatusOK, []byte("{}"))
+	writeResponseFromBytes(ctx, http.StatusOK, []byte("{}"))
 }

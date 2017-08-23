@@ -3,30 +3,29 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"strconv"
 	"strings"
 
-	"github.com/julienschmidt/httprouter"
 	"github.com/rumyantseva/highloadcup/pkg/db"
 	"github.com/rumyantseva/highloadcup/pkg/models"
+	"github.com/valyala/fasthttp"
 )
 
-func (h *Handler) Visit(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	id := ps.ByName("id")
+func (h *Handler) Visit(ctx *fasthttp.RequestCtx) {
+	id := ctx.UserValue("id").(string)
 
 	fromCache := h.visit.Get(id)
 	if fromCache != nil {
-		writeResponseFromBytes(w, http.StatusOK, fromCache)
+		writeResponseFromBytes(ctx, http.StatusOK, fromCache)
 		return
 	}
 
 	uid, err := strconv.ParseUint(id, 10, 32)
 
 	if err != nil {
-		writeResponse(w, http.StatusBadRequest, nil)
+		writeResponse(ctx, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -34,67 +33,68 @@ func (h *Handler) Visit(w http.ResponseWriter, r *http.Request, ps httprouter.Pa
 	raw, err := txn.First("visit", "id", uid)
 	if err != nil {
 		log.Print(err)
-		writeResponse(w, http.StatusInternalServerError, nil)
+		writeResponse(ctx, http.StatusInternalServerError, nil)
 		return
 	}
 	txn.Abort()
 
 	if raw == nil {
-		writeResponse(w, http.StatusNotFound, nil)
+		writeResponse(ctx, http.StatusNotFound, nil)
 		return
 	}
 
 	var visit models.Visit
 	visit = raw.(models.Visit)
-	writeResponse(w, http.StatusOK, visit)
+	writeResponse(ctx, http.StatusOK, visit)
 }
 
-func (h *Handler) UserVisits(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	id := ps.ByName("id")
+func (h *Handler) UserVisits(ctx *fasthttp.RequestCtx) {
+	id := ctx.UserValue("id").(string)
+
 	uid, err := strconv.ParseUint(id, 10, 32)
 
 	if err != nil {
-		writeResponse(w, http.StatusBadRequest, nil)
+		writeResponse(ctx, http.StatusBadRequest, nil)
 		return
 	}
 
 	// Check user
 	_, err = db.User(h.withdb.DB, uint(uid))
 	if err != nil {
-		writeResponse(w, http.StatusNotFound, nil)
+		writeResponse(ctx, http.StatusNotFound, nil)
 		return
 	}
 
 	var fromDate *int
-	sFromDate := r.URL.Query().Get("fromDate")
+	sFromDate := string(ctx.URI().QueryArgs().Peek("fromDate"))
 	if len(sFromDate) > 0 {
 		iFromDate, err := strconv.Atoi(sFromDate)
 		if err != nil {
-			writeResponse(w, http.StatusBadRequest, nil)
+			writeResponse(ctx, http.StatusBadRequest, nil)
 			return
 		}
 		fromDate = &iFromDate
 	}
 
 	var toDate *int
-	sToDate := r.URL.Query().Get("toDate")
+	sToDate := string(ctx.URI().QueryArgs().Peek("toDate"))
 	if len(sToDate) > 0 {
 		iToDate, err := strconv.Atoi(sToDate)
 		if err != nil {
-			writeResponse(w, http.StatusBadRequest, nil)
+			writeResponse(ctx, http.StatusBadRequest, nil)
 			return
 		}
 		toDate = &iToDate
 	}
 
-	country := r.URL.Query().Get("country")
+	country := string(ctx.URI().QueryArgs().Peek("country"))
 
 	var toDistance *int
-	sToDistance := r.URL.Query().Get("toDistance")
+	sToDistance := string(ctx.URI().QueryArgs().Peek("toDistance"))
 	if len(sToDistance) > 0 {
 		iToDistance, err := strconv.Atoi(sToDistance)
 		if err != nil {
-			writeResponse(w, http.StatusBadRequest, nil)
+			writeResponse(ctx, http.StatusBadRequest, nil)
 			return
 		}
 		toDistance = &iToDistance
@@ -106,7 +106,7 @@ func (h *Handler) UserVisits(w http.ResponseWriter, r *http.Request, ps httprout
 	iter, err := txn.Get("visit", "user_id", uid)
 	if err != nil {
 		log.Print(err)
-		writeResponse(w, http.StatusInternalServerError, nil)
+		writeResponse(ctx, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -148,27 +148,28 @@ func (h *Handler) UserVisits(w http.ResponseWriter, r *http.Request, ps httprout
 		Visits: visits,
 	}
 
-	writeResponse(w, http.StatusOK, data)
+	writeResponse(ctx, http.StatusOK, data)
 }
 
-func (h *Handler) UpdateVisit(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	id := ps.ByName("id")
+func (h *Handler) UpdateVisit(ctx *fasthttp.RequestCtx) {
+	id := ctx.UserValue("id").(string)
+
 	if id == "new" {
-		h.CreateVisit(w, r, ps)
+		h.CreateVisit(ctx)
 		return
 	}
 
 	uid, err := strconv.ParseUint(id, 10, 32)
 
 	if err != nil {
-		writeResponse(w, http.StatusNotFound, nil)
+		writeResponse(ctx, http.StatusNotFound, nil)
 		return
 	}
 
 	// Check if location exists
 	visit, err := db.Visit(h.withdb.DB, uint(uid))
 	if err != nil {
-		writeResponse(w, http.StatusNotFound, nil)
+		writeResponse(ctx, http.StatusNotFound, nil)
 		return
 	}
 
@@ -179,23 +180,23 @@ func (h *Handler) UpdateVisit(w http.ResponseWriter, r *http.Request, ps httprou
 		Mark      *int  `json:"mark,omitempty"`
 	}{}
 
-	defer r.Body.Close()
-	body, err := ioutil.ReadAll(r.Body)
-	bodyString := string(body)
+	//	defer r.Body.Close()
+	//body, err := ioutil.ReadAll(r.Body)
+	bodyString := string(ctx.PostBody())
 	//log.Print(bodyString)
 
 	// if body contains null, ignore it
 	if strings.Contains(bodyString, "null") {
-		writeResponse(w, http.StatusBadRequest, nil)
+		writeResponse(ctx, http.StatusBadRequest, nil)
 		return
 	}
 
-	err = json.Unmarshal(body, &req)
+	err = json.Unmarshal(ctx.PostBody(), &req)
 
 	//err = json.NewDecoder(r.Body).Decode(&req)
 
 	if err != nil {
-		writeResponse(w, http.StatusBadRequest, nil)
+		writeResponse(ctx, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -233,16 +234,16 @@ func (h *Handler) UpdateVisit(w http.ResponseWriter, r *http.Request, ps httprou
 		err = txn.Insert("visit", *visit)
 		if err != nil {
 			log.Print(err)
-			writeResponse(w, http.StatusInternalServerError, nil)
+			writeResponse(ctx, http.StatusInternalServerError, nil)
 			return
 		}
 		txn.Commit()
 	}()
 
-	writeResponseFromBytes(w, http.StatusOK, []byte("{}"))
+	writeResponseFromBytes(ctx, http.StatusOK, []byte("{}"))
 }
 
-func (h *Handler) CreateVisit(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+func (h *Handler) CreateVisit(ctx *fasthttp.RequestCtx) {
 	req := struct {
 		User      *uint `json:"user,omitempty"`
 		Location  *uint `json:"location,omitempty"`
@@ -251,17 +252,18 @@ func (h *Handler) CreateVisit(w http.ResponseWriter, r *http.Request, ps httprou
 		ID        *uint `json:"id,omitempty"`
 	}{}
 
-	defer r.Body.Close()
-	err := json.NewDecoder(r.Body).Decode(&req)
+	//	defer r.Body.Close()
+	//	err := json.NewDecoder(r.Body).Decode(&req)
+	err := json.Unmarshal(ctx.PostBody(), &req)
 
 	if err != nil {
-		writeResponse(w, http.StatusBadRequest, nil)
+		writeResponse(ctx, http.StatusBadRequest, nil)
 		return
 	}
 
 	if req.User == nil || req.Location == nil || req.VisitedAt == nil ||
 		req.Mark == nil || req.ID == nil {
-		writeResponse(w, http.StatusBadRequest, nil)
+		writeResponse(ctx, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -280,11 +282,11 @@ func (h *Handler) CreateVisit(w http.ResponseWriter, r *http.Request, ps httprou
 		err = txn.Insert("visit", visit)
 		if err != nil {
 			log.Print(err)
-			writeResponse(w, http.StatusInternalServerError, nil)
+			writeResponse(ctx, http.StatusInternalServerError, nil)
 			return
 		}
 		txn.Commit()
 	}()
 
-	writeResponseFromBytes(w, http.StatusOK, []byte("{}"))
+	writeResponseFromBytes(ctx, http.StatusOK, []byte("{}"))
 }

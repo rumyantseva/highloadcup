@@ -2,13 +2,13 @@ package main
 
 import (
 	"log"
-	"net/http"
 
+	"github.com/buaazp/fasthttprouter"
 	"github.com/rumyantseva/highloadcup/pkg/cache"
 	"github.com/rumyantseva/highloadcup/pkg/handlers"
+	"github.com/valyala/fasthttp"
 
 	memdb "github.com/hashicorp/go-memdb"
-	"github.com/julienschmidt/httprouter"
 	"github.com/rumyantseva/highloadcup/pkg/data"
 	"github.com/rumyantseva/highloadcup/pkg/db"
 )
@@ -41,7 +41,7 @@ func main() {
 
 	log.Printf("`Current` time is: %d", stamp)
 
-	r := httprouter.New()
+	r := fasthttprouter.New()
 	h := handlers.NewHandler(withdb, userCache, locationCache, visitCache, stamp)
 
 	r.GET("/users/:id", h.User)
@@ -55,5 +55,5 @@ func main() {
 	r.POST("/locations/:id", h.UpdateLocation)
 	r.POST("/visits/:id", h.UpdateVisit)
 
-	log.Fatal(http.ListenAndServe(":80", r))
+	log.Fatal(fasthttp.ListenAndServe(":80", r.Handler))
 }
