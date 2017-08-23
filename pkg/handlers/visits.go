@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -15,6 +16,13 @@ import (
 
 func (h *Handler) Visit(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	id := ps.ByName("id")
+
+	fromCache := h.visit.Get(id)
+	if fromCache != nil {
+		writeResponseFromBytes(w, http.StatusOK, fromCache)
+		return
+	}
+
 	uid, err := strconv.ParseUint(id, 10, 32)
 
 	if err != nil {
@@ -205,29 +213,33 @@ func (h *Handler) UpdateVisit(w http.ResponseWriter, r *http.Request, ps httprou
 		ID:        uint(uid),
 	}()*/
 
-	if req.User != nil {
-		visit.User = *req.User
-	}
-	if req.Location != nil {
-		visit.Location = *req.Location
-	}
-	if req.VisitedAt != nil {
-		visit.VisitedAt = *req.VisitedAt
-	}
-	if req.Mark != nil {
-		visit.Mark = *req.Mark
-	}
+	go func() {
+		if req.User != nil {
+			visit.User = *req.User
+		}
+		if req.Location != nil {
+			visit.Location = *req.Location
+		}
+		if req.VisitedAt != nil {
+			visit.VisitedAt = *req.VisitedAt
+		}
+		if req.Mark != nil {
+			visit.Mark = *req.Mark
+		}
 
-	txn := h.withdb.DB.Txn(true)
-	err = txn.Insert("visit", *visit)
-	if err != nil {
-		log.Print(err)
-		writeResponse(w, http.StatusInternalServerError, nil)
-		return
-	}
-	txn.Commit()
+		go h.visit.SetFrom(fmt.Sprint(visit.ID), visit)
 
-	writeResponse(w, http.StatusOK, struct{}{})
+		txn := h.withdb.DB.Txn(true)
+		err = txn.Insert("visit", *visit)
+		if err != nil {
+			log.Print(err)
+			writeResponse(w, http.StatusInternalServerError, nil)
+			return
+		}
+		txn.Commit()
+	}()
+
+	writeResponseFromBytes(w, http.StatusOK, []byte("{}"))
 }
 
 func (h *Handler) CreateVisit(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
@@ -253,22 +265,26 @@ func (h *Handler) CreateVisit(w http.ResponseWriter, r *http.Request, ps httprou
 		return
 	}
 
-	visit := models.Visit{
-		User:      *req.User,
-		Location:  *req.Location,
-		VisitedAt: *req.VisitedAt,
-		Mark:      *req.Mark,
-		ID:        *req.ID,
-	}
+	go func() {
+		visit := models.Visit{
+			User:      *req.User,
+			Location:  *req.Location,
+			VisitedAt: *req.VisitedAt,
+			Mark:      *req.Mark,
+			ID:        *req.ID,
+		}
 
-	txn := h.withdb.DB.Txn(true)
-	err = txn.Insert("visit", visit)
-	if err != nil {
-		log.Print(err)
-		writeResponse(w, http.StatusInternalServerError, nil)
-		return
-	}
-	txn.Commit()
+		go h.visit.SetFrom(fmt.Sprint(visit.ID), visit)
 
-	writeResponse(w, http.StatusOK, struct{}{})
+		txn := h.withdb.DB.Txn(true)
+		err = txn.Insert("visit", visit)
+		if err != nil {
+			log.Print(err)
+			writeResponse(w, http.StatusInternalServerError, nil)
+			return
+		}
+		txn.Commit()
+	}()
+
+	writeResponseFromBytes(w, http.StatusOK, []byte("{}"))
 }

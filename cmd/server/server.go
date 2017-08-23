@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/rumyantseva/highloadcup/pkg/cache"
 	"github.com/rumyantseva/highloadcup/pkg/handlers"
 
 	memdb "github.com/hashicorp/go-memdb"
@@ -20,9 +21,14 @@ func main() {
 	}
 
 	withdb := db.NewWithMax(mem)
+	userCache := cache.NewStorage()
+	locationCache := cache.NewStorage()
+	visitCache := cache.NewStorage()
+
+	imp := data.NewStorage(withdb, userCache, locationCache, visitCache)
 
 	go func() {
-		err = data.Import(withdb)
+		err = imp.Import()
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -36,7 +42,7 @@ func main() {
 	log.Printf("`Current` time is: %d", stamp)
 
 	r := httprouter.New()
-	h := handlers.NewHandler(withdb, stamp)
+	h := handlers.NewHandler(withdb, userCache, locationCache, visitCache, stamp)
 
 	r.GET("/users/:id", h.User)
 	r.GET("/locations/:id", h.Location)

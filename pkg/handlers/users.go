@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -15,6 +16,13 @@ import (
 
 func (h *Handler) User(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	id := ps.ByName("id")
+
+	fromCache := h.user.Get(id)
+	if fromCache != nil {
+		writeResponseFromBytes(w, http.StatusOK, fromCache)
+		return
+	}
+
 	uid, err := strconv.ParseUint(id, 10, 32)
 
 	if err != nil {
@@ -104,32 +112,36 @@ func (h *Handler) UpdateUser(w http.ResponseWriter, r *http.Request, ps httprout
 		ID:        uint(uid),
 	}*/
 
-	if req.FirstName != nil {
-		user.FirstName = *req.FirstName
-	}
-	if req.LastName != nil {
-		user.LastName = *req.LastName
-	}
-	if req.BirthDate != nil {
-		user.BirthDate = *req.BirthDate
-	}
-	if req.Gender != nil {
-		user.Gender = *req.Gender
-	}
-	if req.Email != nil {
-		user.Email = *req.Email
-	}
+	go func() {
+		if req.FirstName != nil {
+			user.FirstName = *req.FirstName
+		}
+		if req.LastName != nil {
+			user.LastName = *req.LastName
+		}
+		if req.BirthDate != nil {
+			user.BirthDate = *req.BirthDate
+		}
+		if req.Gender != nil {
+			user.Gender = *req.Gender
+		}
+		if req.Email != nil {
+			user.Email = *req.Email
+		}
 
-	txn := h.withdb.DB.Txn(true)
-	err = txn.Insert("user", *user)
-	if err != nil {
-		log.Print(err)
-		writeResponse(w, http.StatusInternalServerError, nil)
-		return
-	}
-	txn.Commit()
+		go h.user.SetFrom(fmt.Sprint(user.ID), user)
 
-	writeResponse(w, http.StatusOK, struct{}{})
+		txn := h.withdb.DB.Txn(true)
+		err = txn.Insert("user", *user)
+		if err != nil {
+			log.Print(err)
+			writeResponse(w, http.StatusInternalServerError, nil)
+			return
+		}
+		txn.Commit()
+	}()
+
+	writeResponseFromBytes(w, http.StatusOK, []byte("{}"))
 }
 
 func (h *Handler) CreateUser(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
@@ -162,23 +174,27 @@ func (h *Handler) CreateUser(w http.ResponseWriter, r *http.Request, ps httprout
 
 	//h.withdb.MaxUser++
 
-	user := models.User{
-		FirstName: *req.FirstName,
-		LastName:  *req.LastName,
-		BirthDate: *req.BirthDate,
-		Gender:    *req.Gender,
-		Email:     *req.Email,
-		ID:        *req.ID,
-	}
+	go func() {
+		user := models.User{
+			FirstName: *req.FirstName,
+			LastName:  *req.LastName,
+			BirthDate: *req.BirthDate,
+			Gender:    *req.Gender,
+			Email:     *req.Email,
+			ID:        *req.ID,
+		}
 
-	txn := h.withdb.DB.Txn(true)
-	err = txn.Insert("user", user)
-	if err != nil {
-		log.Print(err)
-		writeResponse(w, http.StatusInternalServerError, nil)
-		return
-	}
-	txn.Commit()
+		go h.user.SetFrom(fmt.Sprint(user.ID), user)
 
-	writeResponse(w, http.StatusOK, struct{}{})
+		txn := h.withdb.DB.Txn(true)
+		err = txn.Insert("user", user)
+		if err != nil {
+			log.Print(err)
+			writeResponse(w, http.StatusInternalServerError, nil)
+			return
+		}
+		txn.Commit()
+	}()
+
+	writeResponseFromBytes(w, http.StatusOK, []byte("{}"))
 }

@@ -7,19 +7,34 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/rumyantseva/highloadcup/pkg/cache"
 	"github.com/rumyantseva/highloadcup/pkg/db"
 )
 
 type Handler struct {
-	withdb  *db.WithMax
-	current int
+	withdb   *db.WithMax
+	current  int
+	user     *cache.Storage
+	location *cache.Storage
+	visit    *cache.Storage
 }
 
-func NewHandler(withmax *db.WithMax, current int) *Handler {
+func NewHandler(withmax *db.WithMax, user, location, visit *cache.Storage, current int) *Handler {
 	return &Handler{
-		withdb:  withmax,
-		current: current,
+		withdb:   withmax,
+		user:     user,
+		location: location,
+		visit:    visit,
+		current:  current,
 	}
+}
+
+func writeResponseFromBytes(w http.ResponseWriter, code int, data []byte) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	len := binary.Size(data)
+	w.Header().Set("Content-Length", fmt.Sprintf("%d", len))
+	w.WriteHeader(code)
+	w.Write(data)
 }
 
 func writeResponse(w http.ResponseWriter, code int, resp interface{}) {
