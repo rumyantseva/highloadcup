@@ -85,6 +85,7 @@ func (s *Storage) Import() error {
 			wg.Done()
 		}(file)
 	}
+	wg.Wait()
 
 	for _, file := range visitFiles {
 		wg.Add(1)
@@ -98,7 +99,6 @@ func (s *Storage) Import() error {
 			wg.Done()
 		}(file)
 	}
-
 	wg.Wait()
 
 	log.Printf("Processed %d user files", len(userFiles))
