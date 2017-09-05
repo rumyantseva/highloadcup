@@ -38,20 +38,6 @@ func NewStorage(
 // Import prepared data from data files.
 func (s *Storage) Import() error {
 	archive := "/tmp/data/data.zip"
-	//target := "/tmp/data/unzip"
-
-	// try 5 times to open zip
-	/*var err error
-	for i := 0; i < 5; i++ {
-		err = unzip(archive, target)
-		if err == nil {
-			break
-		}
-		time.Sleep(2 * time.Second)
-	}
-	if err != nil {
-		return 0, err
-	}*/
 
 	reader, err := zip.OpenReader(archive)
 	if err != nil {
@@ -61,6 +47,7 @@ func (s *Storage) Import() error {
 	var userFiles []*zip.File
 	var locationFiles []*zip.File
 	var visitFiles []*zip.File
+
 	for _, file := range reader.File {
 		if strings.HasPrefix(file.Name, "users") {
 			userFiles = append(userFiles, file)
@@ -71,80 +58,52 @@ func (s *Storage) Import() error {
 		}
 	}
 
-	//max := 1000000
-	//pattern := target + "/%s_%d.json"
-
 	wg := &sync.WaitGroup{}
-	wg.Add(3)
 
-	go func() {
-		for _, file := range userFiles {
+	for _, file := range userFiles {
+		wg.Add(1)
+		go func(file *zip.File) {
+			log.Printf("Process file %s...", file.Name)
 			err = s.user(file)
 			if err != nil {
 				log.Printf("Couldn't parse user: %v", err)
 			}
-		}
-		log.Printf("Processed %d user files", len(userFiles))
-		wg.Done()
-	}()
+			log.Printf("File %s processed.", file.Name)
+			wg.Done()
+		}(file)
+	}
 
-	go func() {
-		for _, file := range locationFiles {
+	for _, file := range locationFiles {
+		wg.Add(1)
+		go func(file *zip.File) {
+			log.Printf("Process file %s...", file.Name)
 			err = s.location(file)
 			if err != nil {
 				log.Printf("Couldn't parse location: %v", err)
 			}
-		}
-		log.Printf("Processed %d location files", len(locationFiles))
-		wg.Done()
-	}()
+			log.Printf("File %s processed.", file.Name)
+			wg.Done()
+		}(file)
+	}
 
-	go func() {
-		for _, file := range visitFiles {
+	for _, file := range visitFiles {
+		wg.Add(1)
+		go func(file *zip.File) {
+			log.Printf("Process file %s...", file.Name)
 			err = s.visit(file)
 			if err != nil {
 				log.Printf("Couldn't parse visit: %v", err)
 			}
-		}
-		log.Printf("Processed %d visit files", len(visitFiles))
-		wg.Done()
-	}()
-
-	/*	go func() {
-			var i int
-			for i = 1; i < max; i++ {
-				file, err := os.Open(fmt.Sprintf(pattern, "locations", i))
-				if err != nil {
-					break
-				}
-
-				err = location(file, withdb)
-				if err != nil {
-					log.Printf("Couldn't parse location: %v", err)
-				}
-			}
-			log.Printf("Processed %d location files", i-1)
+			log.Printf("File %s processed.", file.Name)
 			wg.Done()
-		}()
+		}(file)
+	}
 
-		go func() {
-			var i int
-			for i = 1; i < max; i++ {
-				file, err := os.Open(fmt.Sprintf(pattern, "visits", i))
-				if err != nil {
-					break
-				}
-
-				err = visit(file, withdb)
-				if err != nil {
-					log.Printf("Couldn't parse user: %v", err)
-				}
-			}
-			log.Printf("Processed %d visits files", i-1)
-			wg.Done()
-		}()
-	*/
 	wg.Wait()
+
+	log.Printf("Processed %d user files", len(userFiles))
+	log.Printf("Processed %d location files", len(locationFiles))
+	log.Printf("Processed %d visit files", len(visitFiles))
 
 	return nil
 }

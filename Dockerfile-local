@@ -4,10 +4,10 @@ COPY bin/travels /
 
 # DON'T FORGET TO REMOVE THIS BEFORE SENDING SOLUTION!!!
 RUN mkdir -p /tmp/data
-COPY data/train/data.zip /tmp/data
-COPY data/train/options.txt /tmp/data
-#COPY data/full/data.zip /tmp/data
-#COPY data/full/options.txt /tmp/data
+#COPY data/train/data.zip /tmp/data
+#COPY data/train/options.txt /tmp/data
+COPY data/full/data.zip /tmp/data
+COPY data/full/options.txt /tmp/data
 
 EXPOSE 80
 
